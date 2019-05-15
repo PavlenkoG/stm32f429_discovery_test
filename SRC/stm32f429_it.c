@@ -1,9 +1,11 @@
 #include "main.h"
 #include "stm32f4xx_dma.h"
 
+#if 0
 extern uint32_t pUartLine;
 extern uint32_t pUartSymbol;
 extern uint8_t uartString[2][NMEA_MAX_LEN_STRING];
+
 
 void USART1_IRQHandler () {
 	if( USART_GetITStatus(USART1, USART_IT_RXNE)) {
@@ -30,3 +32,5 @@ void USART1_IRQHandler () {
 
 void DMA2_Stream2_IRQHandler() {
 }
+
+#endif

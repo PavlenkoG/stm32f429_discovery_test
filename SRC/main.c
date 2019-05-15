@@ -6,10 +6,13 @@
 #include "stm32f4xx.h"
 #include "system_stm32f4xx.h"
 
+#if 0
 uint8_t uartString[2][NMEA_MAX_LEN_STRING] = {0};
 uint32_t pUartLine = 0;
 uint32_t pUartSymbol = 0;
+#endif
 
+uint16_t sio[200] = {0};
 void main () {
 
 	geoPointString geoPoint;
@@ -74,7 +77,7 @@ void main () {
     LTDC_ReloadConfig(LTDC_IMReload);
     LCD_Clear(LCD_COLOR_BLACK);
 
-
+#if 0
     UART1_Init();
 //  USART_DMACmd(USART1,USART_DMAReq_Rx,ENABLE);
     USART_ITConfig(USART1,USART_IT_RXNE,ENABLE);
@@ -93,7 +96,21 @@ void main () {
     uint16_t line = 0;
     uint32_t pUartLineTmp = 0;
     double speed = 0.0;
+#endif
+
+    Tim8_InputInit();
+    DMA_TIM8_Init();
+//  DMA_ITConfig(DMA2_Stream2,DMA_IT_TC,ENABLE);
+
+    NVIC_InitTypeDef NVIC_InitStruct;
+    NVIC_InitStruct.NVIC_IRQChannel = DMA2_Stream2_IRQn;
+    NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 0;
+    NVIC_InitStruct.NVIC_IRQChannelSubPriority = 0;
+    NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStruct);
+
     while (1) {
+#if 0
     	if (pUartLineTmp != pUartLine) {
     		getGpsPointString(uartString[pUartLineTmp], &geoPoint, &geoVector);
     		LCD_DisplayStringLine(LCD_LINE_0,geoPoint.lat);
@@ -112,9 +129,11 @@ void main () {
     		LCD_DisplayStringLine(LCD_LINE_5,speedStr);
 
     	}
+#endif
     }
 }
 
+#if 0
 void UART1_Init() {
 
     USART_InitTypeDef usart1Init;
@@ -140,7 +159,6 @@ void UART1_Init() {
     //USART1->BRR = ;
     USART_Cmd(USART1, ENABLE);
 }
-
 void DMA_UART1_Init () {
     RCC->AHB1ENR |= RCC_AHB1ENR_DMA2EN;
     DMA_InitTypeDef DmaInitTypeDef;
@@ -162,7 +180,62 @@ void DMA_UART1_Init () {
     DMA_Cmd(DMA2_Stream2,ENABLE);
 
 }
+#endif
 
+void DMA_TIM8_Init () {
+    RCC->AHB1ENR |= RCC_AHB1ENR_DMA2EN;
+    DMA_InitTypeDef DmaInitTypeDef;
+    DMA_StructInit(&DmaInitTypeDef);
+    DmaInitTypeDef.DMA_BufferSize = 200;
+    DmaInitTypeDef.DMA_Channel = DMA_Channel_0;
+    DmaInitTypeDef.DMA_DIR = DMA_DIR_PeripheralToMemory;
+    DmaInitTypeDef.DMA_PeripheralBaseAddr = ((uint32_t)(&TIM8->CCR3));
+    DmaInitTypeDef.DMA_Memory0BaseAddr = (uint16_t)&sio;
+    DmaInitTypeDef.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
+    DmaInitTypeDef.DMA_Mode = DMA_Mode_Circular;
+    DmaInitTypeDef.DMA_MemoryInc = DMA_MemoryInc_Enable;
+
+
+    DMA_DeInit(DMA2_Stream2);
+    DMA_Init(DMA2_Stream2, & DmaInitTypeDef);
+//  DMA_DoubleBufferModeConfig(DMA2_Stream2, (uint32_t)&uartString[1], DMA_Memory_0);
+//  DMA_DoubleBufferModeCmd(DMA2_Stream2,ENABLE);
+    DMA_Cmd(DMA2_Stream2,ENABLE);
+
+
+}
+void Tim8_InputInit() {
+	RCC->APB2ENR |= RCC_APB2ENR_TIM8EN;
+	GPIO_InitTypeDef GPIO_Init_Structure;
+
+	GPIO_Init_Structure.GPIO_Mode = GPIO_Mode_AF;
+	GPIO_Init_Structure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	GPIO_Init_Structure.GPIO_Speed = GPIO_Fast_Speed;
+	GPIO_Init_Structure.GPIO_OType = GPIO_OType_PP;
+	// WRX_Pin
+	GPIO_Init_Structure.GPIO_Pin = GPIO_Pin_8;
+	GPIO_PinAFConfig(GPIOC,8,GPIO_AF_TIM8);
+	GPIO_Init(GPIOC, &GPIO_Init_Structure);
+
+
+	TIM_ICInitTypeDef TIM_IC_Structure;
+	TIM_IC_Structure.TIM_Channel = TIM_Channel_3;
+	TIM_IC_Structure.TIM_ICPolarity = TIM_ICPolarity_BothEdge;
+	TIM_IC_Structure.TIM_ICSelection = TIM_ICSelection_DirectTI;
+	TIM_IC_Structure.TIM_ICPrescaler = TIM_ICPSC_DIV1;
+	TIM_IC_Structure.TIM_ICFilter = 0x00;
+
+	TIM_ICInit(TIM8,&TIM_IC_Structure);
+
+	// config EGR
+	TIM_GenerateEvent(TIM8, (TIM_EventSource_Update | TIM_EventSource_CC3));
+	// config DCR
+//	TIM_DMAConfig(TIM8,TIM_DMABase_EGR,TIM_DMABurstLength_2Bytes);
+	TIM_DMAConfig(TIM8,TIM_DMABase_CCR3,TIM_DMABurstLength_2Bytes);
+	TIM_Cmd(TIM8,ENABLE);
+	TIM_CCxCmd(TIM8,TIM_Channel_3,TIM_CCx_Enable);
+
+}
 
 
 #ifdef  USE_FULL_ASSERT
